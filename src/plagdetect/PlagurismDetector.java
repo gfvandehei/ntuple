@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.*;
 import plagdetect.FileTuple;
+import plagdetect.FileHandler;
 
 public class PlagurismDetector {
 	
@@ -14,6 +15,7 @@ public class PlagurismDetector {
 	private Integer n;
 	private HashMap<FileTuple,Integer> file1;
 	private HashMap<FileTuple,Integer> file2;
+	private FileHandler fHandler;
 	
 	/**
 	 * Constructor for the PlagurismDetector object
@@ -29,6 +31,19 @@ public class PlagurismDetector {
 			System.exit(0);
 		}
 		this.n = n;
+		this.fHandler = new FileHandler();
+		ArrayList<String> filelines;
+		ArrayList<String> file1words;
+		ArrayList<String> file2words;
+		try {
+			filelines = this.fHandler.readFileLines(synfile, true);
+			file1words = this.fHandler.readFileWords(file1, true);
+			file2words = this.fHandler.readFileLines(synfile, true);
+		}catch(IOException e) {
+			System.out.println("One of your files does not exits: "+synfile+" "+file1+" "+file2);
+			System.exit(0);
+		}
+	
 		this.Synonyms = this.CreateSynMap(synfile);
 		this.file1 = this.getFileTuples(file1);
 		this.file2 = this.getFileTuples(file2);
@@ -69,39 +84,28 @@ public class PlagurismDetector {
 	
 	
 	/**
-	 * Used to create a map of synonyms, all words in a row in "synfile" are considered a synonym
-	 * @param synFile, the name of the file to read synonyms from
+	 * Used to create a map of synonyms, all words in a an index of synlines are treated as synonyms
+	 * @param synlines, the arraylist of synonym lines
 	 * @return a HashMap<String,HashSet<String>> containing words as keys and a set of synonyms as values
 	 */
-	private Map<String,ArrayList<String>> CreateSynMap(String synFile){
+	private Map<String,ArrayList<String>> CreateSynMap(ArrayList<String> synlines){
 		Map<String,ArrayList<String>> synMap = new HashMap<String,ArrayList<String>>();
 		
-		try {
-			FileReader fr = new FileReader(synFile);
-			BufferedReader filereader = new BufferedReader(fr);
-			
-			String line;
-			while((line=filereader.readLine()) != null) {
-				String[] words = line.split(" ");//split line into seperate words
-				for(int i=0;i<Array.getLength(words);i++) {
-					words[i] = words[i].toLowerCase(); //eliminate potential errors from case
-				}
-				ArrayList<String> wordsSet = new ArrayList(Arrays.asList(words));
-				
-				//create a new map entry for each word and add synonym list to it
-				//using lists allows to hash according to values instead of location
-				Iterator<String> i = wordsSet.iterator();
-				while(i.hasNext()) {
-					synMap.put(i.next(), wordsSet);//add word to map, and add Array of synonyms as value 
-				}
+		for(String u: synlines) {
+			String[] words = u.split(" ");//split line into seperate words
+			for(int i=0;i<Array.getLength(words);i++) {
+				words[i] = words[i].toLowerCase(); //eliminate potential errors from case
 			}
-			//System.out.println(synMap);
-			filereader.close();
+			ArrayList<String> wordsSet = new ArrayList(Arrays.asList(words));
+			
+			//create a new map entry for each word and add synonym list to it
+			//using lists allows to hash according to values instead of location
+			Iterator<String> i = wordsSet.iterator();
+			while(i.hasNext()) {
+				synMap.put(i.next(), wordsSet);//add word to map, and add Array of synonyms as value 
+			}
 		}
-		catch(IOException e) { //Buffered reader has failed, we must exit
-			System.out.println("Could not read "+synFile+" please check file name");
-			System.exit(0);
-		}
+		//System.out.println(synMap);
 		return synMap;
 	}
 	
@@ -110,43 +114,26 @@ public class PlagurismDetector {
 	 * @param fileName, the name of the file to generate tuples from
 	 * @return an ArrayList of tuples of length n
 	 */
-	private HashMap<FileTuple,Integer> getFileTuples(String fileName){
+	private HashMap<FileTuple,Integer> createTuples(ArrayList<String> words, int n){
 		HashMap<FileTuple,Integer> tuples = new HashMap<FileTuple,Integer>();
-		try {
-			Scanner sc = new Scanner(new File(fileName));
-			
-			//populate an array with all words from file
-			ArrayList<String> filearr = new ArrayList<String>();
-			while(sc.hasNext()) {
-				filearr.add(sc.next().toLowerCase()); //prevent errors from case differences
+		//create tuples from file array, and add to return ArrayList
+		for(int i=0;i<words.size()-this.n+1;i++) {
+			ArrayList<String> tuple = new ArrayList<String>();
+			//make a array of length n
+			for(int u=0;u<n;u++) {
+				tuple.add(words.get(i+u));
 			}
-			//create tuples from file array, and add to return ArrayList
-			for(int i=0;i<filearr.size()-this.n+1;i++) {
-				ArrayList<String> tuple = new ArrayList<String>();
-				//make a array of length n
-				for(int u=0;u<this.n;u++) {
-					tuple.add(filearr.get(i+u));
-				}
-				//create tuple out of array
-				FileTuple curTuple = new FileTuple(tuple);
-				//if the tuple already exists increment a counter for it to keep track of time it appears
-				if(tuples.containsKey(curTuple)) {
-					int oldvalue = tuples.get(curTuple);
-					tuples.replace(curTuple, oldvalue+1);
-				}
-				else {//take care of case where tuple does not exist, so we must initialize key and counter to 1
-					tuples.put(curTuple,1);
-				}
+			//create tuple out of array
+			FileTuple curTuple = new FileTuple(tuple);
+			//if the tuple already exists increment a counter for it to keep track of time it appears
+			if(tuples.containsKey(curTuple)) {
+				int oldvalue = tuples.get(curTuple);
+				tuples.replace(curTuple, oldvalue+1);
 			}
-			//System.out.println(tuples);
-			sc.close();
+			else {//take care of case where tuple does not exist, so we must initialize key and counter to 1
+				tuples.put(curTuple,1);
+			}
 		}
-		catch(IOException e) { //will be reached if file could not be read
-			System.out.println("Could not read file "+fileName);
-			System.out.println(e);
-			System.exit(0);
-		}
-		
 		return tuples;
 	}
 }
